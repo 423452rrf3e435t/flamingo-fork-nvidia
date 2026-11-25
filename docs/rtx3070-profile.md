@@ -20,6 +20,12 @@ The script selects the Series S console profile by default. In this port, that k
 
 The script uses a 512 MiB card-buffer pool instead of the 1 GiB setting in the repository's RTX 4070 test recipe. It enables the repository's documented relay / late-wait / indirect-window recipe, the parallel texture-refresh path (`VICTORY_WIDE_TEXTURES=1`, measured in the project log to reduce streaming dips), and the Flamingo stats overlay. Press **F9** to hide or show the overlay. It saves console output under `%LOCALAPPDATA%\\flamingo\\logs` and restores the process environment after the title exits.
 
+## Fresh start for every test
+
+The RTX 3070 launcher now starts with a fresh title profile by default. Before each run it reads the title ID and data directory from the active game manifest and VIctory config, then moves the existing `saves` and `storage` folders to timestamped sibling backups and creates empty folders. It does not permanently delete the previous state. The backup paths are printed before launch.
+
+Use `-KeepProgress` to skip this reset and continue with the existing save/profile. Shader and pipeline caches are not cleared by the fresh-start option.
+
 ## Memory warning for 16 GiB systems
 
 The repository's earlier Flamingo measurements were made on a 32 GiB PC. Its notes report a roughly 15–16 GiB process working set in gameplay and substantially more committed memory than the process's resident working set. On a 16 GiB PC, Windows may page frequently; this can cause severe frame-time spikes even when the GPU is not fully busy.
