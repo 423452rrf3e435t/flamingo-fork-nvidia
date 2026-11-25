@@ -75,6 +75,7 @@ $names = @(
     "VICTORY_INDIRECT_WINDOW",
     "VICTORY_SHADER_OPT",
     "VICTORY_WIDE_MERGE",
+    "VICTORY_WIDE_TEXTURES",
     "VICTORY_BVH_BUILDER",
     "VICTORY_AMBIENT_STUB",
     "VICTORY_SHADOWMASK_STUB",
@@ -107,6 +108,9 @@ try {
     $env:VICTORY_INDIRECT_WINDOW = "1"
     $env:VICTORY_SHADER_OPT = "0"
     $env:VICTORY_WIDE_MERGE = "1"
+    # Texture refreshes run on the independent worker pool; the project's
+    # RTX 4070 run log recorded fewer streaming/turning frame dips with it.
+    $env:VICTORY_WIDE_TEXTURES = "1"
 
     # Do not let inherited experiments silently alter the picture/performance.
     # The ambient floor previously washed out the image; quad helpers added
