@@ -261,6 +261,8 @@ struct Lower<'a> {
     exported: Vec<bool>,
     /// Reverse-postorder index per IR block.
     rpo: Vec<usize>,
+    /// Pixel helper lanes need their own descriptor index when a first-lane read feeds it.
+    helper_scalars: bool,
     /// DXIL block each IR block ends in (guarded stores split blocks).
     tail: Vec<Option<usize>>,
     /// The program writes UAVs: barriers fence them too.
@@ -1836,6 +1838,9 @@ impl<'a> Lower<'a> {
             edges: HashMap::new(),
             exported: vec![false; p.blocks.len()],
             rpo: vec![usize::MAX; p.blocks.len()],
+            helper_scalars: super::helper_own()
+                && x.native.stage == HwStage::Ps
+                && p.blocks.iter().any(|b| b.insts.iter().any(|i| i.name() == "v_readfirstlane_b32")),
             tail: vec![None; p.blocks.len()],
             writes_uavs,
             src0: None,
@@ -5182,6 +5187,12 @@ impl<'a> Lower<'a> {
     /// lane: the console reads the first lane of EXEC, and a lane that got here with EXEC clear
     /// (a guard, not a branch) is not one. With none, `x` of the wave's first lane here.
     fn first_lane(&mut self, x: V, guard: Option<V>) -> (V, V) {
+        let (first, any) = self.first_lane_of_wave(x, guard);
+        (self.helper_own(x, first), any)
+    }
+
+    /// The first active lane as wave operations see it, before the helper-lane correction.
+    fn first_lane_of_wave(&mut self, x: V, guard: Option<V>) -> (V, V) {
         let c = self.cur;
         let i32t = self.s.t.i32;
         self.s.flags |= flags::WAVE_OPS;
@@ -5227,6 +5238,17 @@ impl<'a> Lower<'a> {
         let lane = self.s.m.select(c, any, lane, me);
         let at = self.read_lane(x, lane);
         (self.s.m.select(c, any, at, first), any)
+    }
+
+    /// Helper pixels remain active for derivatives, but host wave operations do not include
+    /// them. A helper therefore keeps its own input instead of borrowing the first live lane.
+    fn helper_own(&mut self, x: V, first: V) -> V {
+        if !self.s.pixel || !super::helper_own() {
+            return first;
+        }
+        let c = self.cur;
+        let helper = self.s.op(c, "isHelperLane.i1", Attr::ReadOnly, self.s.t.i1, 221, &[]);
+        self.s.m.select(c, helper, x, first)
     }
 
     fn read_lane(&mut self, x: V, lane: V) -> V {
@@ -6896,7 +6918,8 @@ impl<'a> Lower<'a> {
             if per_lane {
                 self.s.flags |= flags::WAVE_OPS;
                 let i32t = self.s.t.i32;
-                d = self.s.op(c, "waveReadLaneFirst.i32", Attr::NoUnwind, i32t, 118, &[d]);
+                let first = self.s.op(c, "waveReadLaneFirst.i32", Attr::NoUnwind, i32t, 118, &[d]);
+                d = self.helper_own(d, first);
             }
             addr = self.s.m.bin(c, Bin::Add, addr, d);
         }
@@ -7161,7 +7184,7 @@ impl<'a> Lower<'a> {
                 let index = self.heap_index(*load, *first, sampler)?;
                 // A waterfall loop's load at the first lane's offset reads
                 // each lane's own entry (see `resource::Waterfall`).
-                let per_lane = self.x.res.waterfall.loads.contains(load);
+                let per_lane = self.x.res.waterfall.loads.contains(load) || self.helper_scalars;
                 let h = self
                     .s
                     .heap_handle(self.cur, index, sampler, per_lane, props);
@@ -7229,7 +7252,7 @@ impl<'a> Lower<'a> {
             Source::Phi { block, args } => {
                 let _ = site;
                 let phi = self.descriptor_phi(*block, args, sampler, 8)?;
-                Ok(self.s.heap_handle(self.cur, phi, sampler, false, props))
+                Ok(self.s.heap_handle(self.cur, phi, sampler, self.helper_scalars, props))
             }
             Source::Select { scc, args } => {
                 // The heap index of each choice, picked by SCC (uniform).
@@ -7247,7 +7270,7 @@ impl<'a> Lower<'a> {
                 let set = self.heap_index(a, fa, sampler)?;
                 let clear = self.heap_index(b, fb, sampler)?;
                 let index = self.s.m.select(self.cur, cond, set, clear);
-                Ok(self.s.heap_handle(self.cur, index, sampler, false, props))
+                Ok(self.s.heap_handle(self.cur, index, sampler, self.helper_scalars, props))
             }
             Source::Fetched { .. } | Source::Lanes { .. } | Source::LanePhi { .. } => {
                 // A descriptor each lane has its own of (a waterfall loop
@@ -11957,13 +11980,21 @@ impl<'a> Lower<'a> {
         // 14-25 frames in, in a minimap or shadow mesh draw; with every
         // loop cut at 64 it ran 90 frames. Raise them again once shaders
         // stop reading data that is not there yet.)
-        let limit = match super::loop_limit() {
+        let mut limit = match super::loop_limit() {
             LOOP_LIMIT if self.s.pixel => 1 << 7,
             LOOP_LIMIT if self.s.mesh.is_some() || self.s.threads.is_none() => 1 << 8,
             LOOP_LIMIT if self.traces => TRACE_LOOP_LIMIT,
             LOOP_LIMIT => 1 << 12,
             named => named,
         };
+        // A loop whose code fixes its iteration count must finish; stage limits
+        // are for loops whose exit depends on data the host may not have yet.
+        // This is important for the title's environment-BRDF integrations:
+        // their six pixel loops integrate 1,024 samples per texel, while the
+        // ordinary pixel safety limit is 128 passes.
+        if let Some(passes) = super::trip::constant_passes(self.x.p, &self.rpo, to) {
+            limit = limit.max(passes.saturating_add(1));
+        }
         let limit = self.s.m.i32(limit);
         self.counters
             .get_mut(&to)

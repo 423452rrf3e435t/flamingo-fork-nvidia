@@ -103,6 +103,7 @@ mod rect;
 mod sampler;
 mod shader;
 mod threading;
+mod trip;
 #[cfg(windows)]
 pub mod validator;
 #[cfg(all(test, windows))]
@@ -179,6 +180,13 @@ pub fn group_sync() -> u8 {
     })
 }
 
+/// Whether a pixel helper lane keeps its own value on a first-lane read.
+/// With `VICTORY_HELPER_OWN=0` it borrows the first live lane instead.
+pub fn helper_own() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var("VICTORY_HELPER_OWN").map_or(true, |v| v.trim() != "0"))
+}
+
 /// The clean-up passes that run over a translated program before it is
 /// written (`bitcode::opt`): a set of that module's pass bits. Every pass
 /// is exact, so the switch is for telling a translator fault from a
@@ -222,6 +230,7 @@ pub fn translation_fingerprint() -> Vec<u8> {
     out.extend_from_slice(&shader::view_heap_limit().to_le_bytes());
     out.extend_from_slice(&loop_limit().to_le_bytes());
     out.push(group_sync());
+    out.push(u8::from(helper_own()));
     out.extend_from_slice(&shader_opt().to_le_bytes());
     out
 }
