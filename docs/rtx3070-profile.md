@@ -26,6 +26,16 @@ The repository's earlier Flamingo measurements were made on a 32 GiB PC. Its not
 
 Before launching, close other memory-heavy applications and check **Task Manager → Performance → Memory → Committed**. Keep a Windows-managed paging file on an SSD and ensure the commit limit is comfortably above the title's demand. The script only warns about low physical RAM; it does not change paging-file or registry settings.
 
+## Optional image experiment
+
+The launcher can also try Flamingo's no-hit ray mode for one comparison:
+
+```powershell
+.\scripts\play-rtx3070.ps1 -GameExe "C:\path\to\game_scarlett_master.exe" -ExperimentalNoHitLighting
+```
+
+This changes every ray-tracing node test to miss when the structure builder is off. Flamingo's run log reports that it removed some black water artefacts and brightened a face, but reflection fallback streaks remained and an earlier test hung. It is not correct ray-traced lighting; use it only as a short A/B visual experiment, then relaunch without the switch.
+
 ## What this profile deliberately does not enable
 
 - The ray-tracing structure builder remains off. The source documents it as unfinished in this port; a partial or incorrect builder can corrupt title memory or crash the game.
