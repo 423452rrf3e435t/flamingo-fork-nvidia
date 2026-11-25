@@ -25,7 +25,9 @@ param(
 
     [switch]$SeriesX,
 
-    [switch]$NoOverlay
+    [switch]$NoOverlay,
+
+    [switch]$ExperimentalNoHitLighting
 )
 
 $ErrorActionPreference = "Stop"
@@ -74,6 +76,9 @@ $names = @(
     "VICTORY_BVH_BUILDER",
     "VICTORY_AMBIENT_STUB",
     "VICTORY_SHADOWMASK_STUB",
+    "VICTORY_AMBIENT",
+    "FLAMINGO_QUAD_HELPERS",
+    "FLAMINGO_BVH_MISS",
     "FLAMINGO_OSD"
 )
 
@@ -101,11 +106,21 @@ try {
     $env:VICTORY_SHADER_OPT = "0"
     $env:VICTORY_WIDE_MERGE = "1"
 
-    # Do not let an inherited experimental setting replace lighting passes
-    # or start the unfinished ray-tracing structure builder.
+    # Do not let inherited experiments silently alter the picture/performance.
+    # The ambient floor previously washed out the image; quad helpers added
+    # detail but cost about 18% in the documented test; stand-ins did not
+    # restore correct lighting.
     $env:VICTORY_BVH_BUILDER = "0"
     $env:VICTORY_AMBIENT_STUB = "0"
     $env:VICTORY_SHADOWMASK_STUB = "0"
+    $env:VICTORY_AMBIENT = ""
+    $env:FLAMINGO_QUAD_HELPERS = "0"
+    if ($ExperimentalNoHitLighting) {
+        $env:FLAMINGO_BVH_MISS = "1"
+        Write-Warning "Experimental no-hit ray tracing is enabled. It may brighten some areas but replaces reflections with fallback streaks; a previous run hung. Compare briefly, then relaunch without this switch for normal mode."
+    } else {
+        $env:FLAMINGO_BVH_MISS = "0"
+    }
 
     if ($NoOverlay) {
         $env:FLAMINGO_OSD = "0"
@@ -123,6 +138,7 @@ try {
     Write-Host ("Card copy budget: {0} MiB" -f $CardBuffersMb)
     Write-Host ("Stats overlay:    {0}" -f (-not $NoOverlay))
     Write-Host "Ray-tracing builder and lighting stand-ins: OFF"
+    Write-Host ("Experimental no-hit ray mode: {0}" -f [bool]$ExperimentalNoHitLighting)
     Write-Host "Press F9 to hide/show the stats overlay."
     Write-Host ""
 
