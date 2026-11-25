@@ -27,7 +27,9 @@ param(
 
     [switch]$NoOverlay,
 
-    [switch]$ExperimentalNoHitLighting
+    [switch]$ExperimentalNoHitLighting,
+
+    [switch]$ExperimentalQuadHelpers
 )
 
 $ErrorActionPreference = "Stop"
@@ -115,6 +117,13 @@ try {
     $env:VICTORY_SHADOWMASK_STUB = "0"
     $env:VICTORY_AMBIENT = ""
     $env:FLAMINGO_QUAD_HELPERS = "0"
+    if ($ExperimentalQuadHelpers) {
+        $env:FLAMINGO_QUAD_HELPERS = "1"
+        Write-Warning "Experimental quad helper reads can improve fine detail but cost about 18% in the documented test. Compare a close-up and frame time."
+    } else {
+        $env:FLAMINGO_QUAD_HELPERS = "0"
+    }
+
     if ($ExperimentalNoHitLighting) {
         $env:FLAMINGO_BVH_MISS = "1"
         Write-Warning "Experimental no-hit ray tracing is enabled. It may brighten some areas but replaces reflections with fallback streaks; a previous run hung. Compare briefly, then relaunch without this switch for normal mode."
@@ -139,12 +148,17 @@ try {
     Write-Host ("Stats overlay:    {0}" -f (-not $NoOverlay))
     Write-Host "Ray-tracing builder and lighting stand-ins: OFF"
     Write-Host ("Experimental no-hit ray mode: {0}" -f [bool]$ExperimentalNoHitLighting)
+    Write-Host ("Experimental quad helpers:  {0}" -f [bool]$ExperimentalQuadHelpers)
     Write-Host "Press F9 to hide/show the stats overlay."
     Write-Host ""
 
     Push-Location $repoRoot
     try {
-        & $VictoryExe run $GameExe --execute --console $console
+        $logDir = Join-Path $env:LOCALAPPDATA "flamingo\logs"
+        New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+        $logPath = Join-Path $logDir ("rtx3070-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".log")
+        Write-Host ("Run log:          {0}" -f $logPath)
+        & $VictoryExe run $GameExe --execute --console $console 2>&1 | Tee-Object -FilePath $logPath
         $exitCode = $LASTEXITCODE
     } finally {
         Pop-Location
