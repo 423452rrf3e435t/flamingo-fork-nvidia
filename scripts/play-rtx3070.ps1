@@ -194,8 +194,7 @@ try {
     Write-Host ""
 
     # Fresh-start mode archives persistent title data, instead of deleting it.
-    # This title's TitleId is read from the same manifest the runtime reads;
-    # data_dir is read from the same resolved VIctory config.
+    # The title ID and data directory are read from the active manifest/config.
     if (-not $KeepProgress) {
         $configOutput = ""
         $configExitCode = 0
@@ -216,156 +215,49 @@ try {
             throw "Could not read the resolved VIctory config (exit $configExitCode); refusing to reset save data."
         }
 
-        $dataMatch = [regex]::Match($configOutput, '(?m)^\s*data_dir\s*:\s*(?<path>.+?)\s*
-        New-Item -ItemType Directory -Force -Path $logDir | Out-Null
-        $logPath = Join-Path $logDir ("rtx3070-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".log")
-        Write-Host ("Run log:          {0}" -f $logPath)
-
-        # Windows PowerShell can represent native stderr lines as error
-        # records. With the script-wide Stop preference, an ordinary Rust
-        # INFO message on stderr can abort this pipeline. Continue only for
-        # the child process; we still check its real exit code immediately
-        # after the pipeline and throw if it is non-zero.
-        $previousErrorActionPreference = $ErrorActionPreference
-        try {
-            $ErrorActionPreference = "Continue"
-            & $VictoryExe run $GameExe --execute --console $console 2>&1 |
-                Tee-Object -FilePath $logPath
-            if ($null -eq $LASTEXITCODE) {
-                $exitCode = 1
-            } else {
-                $exitCode = [int]$LASTEXITCODE
-            }
-        } finally {
-            $ErrorActionPreference = $previousErrorActionPreference
-        }
-    } finally {
-        Pop-Location
-    }
-
-    if ($exitCode -ne 0) {
-        throw "VIctory exited with code $exitCode. Check the console output and the title's data-folder crashes.log."
-    }
-
-    Write-Host "VIctory exited normally (code 0)."
-} finally {
-    foreach ($name in $names) {
-        [Environment]::SetEnvironmentVariable($name, $previous[$name], "Process")
-    }
-}
-
-# Deliberately do not use the PowerShell exit statement here: after the game
-# quits it would also close the user's interactive PowerShell session.
-)
-        if (-not $dataMatch.Success) {
+        $configLines = $configOutput -split [Environment]::NewLine
+        $dataLine = $configLines |
+            Where-Object { $_.TrimStart().StartsWith("data_dir", [StringComparison]::OrdinalIgnoreCase) } |
+            Select-Object -First 1
+        if (-not $dataLine) {
             throw "Could not find data_dir in 'victory config'; refusing to reset save data."
         }
-        $dataDirText = $dataMatch.Groups["path"].Value.Trim()
+        $dataDirText = $dataLine.Substring($dataLine.IndexOf(":") + 1).Trim()
         if (-not [System.IO.Path]::IsPathRooted($dataDirText)) {
             $dataDirText = Join-Path $repoRoot $dataDirText
         }
         $dataDir = [System.IO.Path]::GetFullPath($dataDirText)
-        $repoPrefix = $repoRoot.TrimEnd('\') + '\'
+        $repoPrefix = $repoRoot.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
         if ($dataDir.StartsWith($repoPrefix, [StringComparison]::OrdinalIgnoreCase)) {
             throw "Refusing to reset title data inside the repository: '$dataDir'."
         }
 
-        $manifestCandidates = @((Join-Path (Split-Path -Parent $GameExe) "MicrosoftGame.config"))
-        $gameDirMatch = [regex]::Match($configOutput, '(?m)^\s*game_dir\s*:\s*(?<path>.+?)\s*
-        New-Item -ItemType Directory -Force -Path $logDir | Out-Null
-        $logPath = Join-Path $logDir ("rtx3070-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".log")
-        Write-Host ("Run log:          {0}" -f $logPath)
-
-        # Windows PowerShell can represent native stderr lines as error
-        # records. With the script-wide Stop preference, an ordinary Rust
-        # INFO message on stderr can abort this pipeline. Continue only for
-        # the child process; we still check its real exit code immediately
-        # after the pipeline and throw if it is non-zero.
-        $previousErrorActionPreference = $ErrorActionPreference
-        try {
-            $ErrorActionPreference = "Continue"
-            & $VictoryExe run $GameExe --execute --console $console 2>&1 |
-                Tee-Object -FilePath $logPath
-            if ($null -eq $LASTEXITCODE) {
-                $exitCode = 1
-            } else {
-                $exitCode = [int]$LASTEXITCODE
-            }
-        } finally {
-            $ErrorActionPreference = $previousErrorActionPreference
-        }
-    } finally {
-        Pop-Location
-    }
-
-    if ($exitCode -ne 0) {
-        throw "VIctory exited with code $exitCode. Check the console output and the title's data-folder crashes.log."
-    }
-
-    Write-Host "VIctory exited normally (code 0)."
-} finally {
-    foreach ($name in $names) {
-        [Environment]::SetEnvironmentVariable($name, $previous[$name], "Process")
-    }
-}
-
-# Deliberately do not use the PowerShell exit statement here: after the game
-# quits it would also close the user's interactive PowerShell session.
-)
-        if ($gameDirMatch.Success) {
-            $gameDirText = $gameDirMatch.Groups["path"].Value.Trim()
-            $gameDirText = $gameDirText -replace '\s+\(does not exist\)
-        New-Item -ItemType Directory -Force -Path $logDir | Out-Null
-        $logPath = Join-Path $logDir ("rtx3070-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".log")
-        Write-Host ("Run log:          {0}" -f $logPath)
-
-        # Windows PowerShell can represent native stderr lines as error
-        # records. With the script-wide Stop preference, an ordinary Rust
-        # INFO message on stderr can abort this pipeline. Continue only for
-        # the child process; we still check its real exit code immediately
-        # after the pipeline and throw if it is non-zero.
-        $previousErrorActionPreference = $ErrorActionPreference
-        try {
-            $ErrorActionPreference = "Continue"
-            & $VictoryExe run $GameExe --execute --console $console 2>&1 |
-                Tee-Object -FilePath $logPath
-            if ($null -eq $LASTEXITCODE) {
-                $exitCode = 1
-            } else {
-                $exitCode = [int]$LASTEXITCODE
-            }
-        } finally {
-            $ErrorActionPreference = $previousErrorActionPreference
-        }
-    } finally {
-        Pop-Location
-    }
-
-    if ($exitCode -ne 0) {
-        throw "VIctory exited with code $exitCode. Check the console output and the title's data-folder crashes.log."
-    }
-
-    Write-Host "VIctory exited normally (code 0)."
-} finally {
-    foreach ($name in $names) {
-        [Environment]::SetEnvironmentVariable($name, $previous[$name], "Process")
-    }
-}
-
-# Deliberately do not use the PowerShell exit statement here: after the game
-# quits it would also close the user's interactive PowerShell session.
-, ''
-            if ($gameDirText -and -not [System.IO.Path]::IsPathRooted($gameDirText)) {
-                $gameDirText = Join-Path $repoRoot $gameDirText
-            }
-            if ($gameDirText) {
-                $manifestCandidates += Join-Path $gameDirText "MicrosoftGame.config"
-            }
-        }
-        $manifestPath = $manifestCandidates |
-            Select-Object -Unique |
-            Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+        $manifestCandidates = New-Object 'System.Collections.Generic.List[string]'
+        $manifestCandidates.Add((Join-Path (Split-Path -Parent $GameExe) "MicrosoftGame.config"))
+        $gameDirLine = $configLines |
+            Where-Object { $_.TrimStart().StartsWith("game_dir", [StringComparison]::OrdinalIgnoreCase) } |
             Select-Object -First 1
+        if ($gameDirLine) {
+            $gameDirText = $gameDirLine.Substring($gameDirLine.IndexOf(":") + 1).Trim()
+            $missingSuffix = "  (does not exist)"
+            if ($gameDirText.EndsWith($missingSuffix, [StringComparison]::OrdinalIgnoreCase)) {
+                $gameDirText = $gameDirText.Substring(0, $gameDirText.Length - $missingSuffix.Length).TrimEnd()
+            }
+            if ($gameDirText -and $gameDirText -ne "(not set)") {
+                if (-not [System.IO.Path]::IsPathRooted($gameDirText)) {
+                    $gameDirText = Join-Path $repoRoot $gameDirText
+                }
+                $manifestCandidates.Add((Join-Path $gameDirText "MicrosoftGame.config"))
+            }
+        }
+
+        $manifestPath = $null
+        foreach ($candidate in $manifestCandidates) {
+            if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+                $manifestPath = $candidate
+                break
+            }
+        }
         if (-not $manifestPath) {
             throw "MicrosoftGame.config was not found; refusing to reset save data."
         }
