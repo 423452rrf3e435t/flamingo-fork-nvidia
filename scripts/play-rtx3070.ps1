@@ -109,7 +109,7 @@ try {
     $env:VICTORY_SHADER_OPT = "0"
     $env:VICTORY_WIDE_MERGE = "1"
     # Texture refreshes run on the independent worker pool; the project's
-    # RTX 4070 run log recorded fewer streaming/turning frame dips with it.
+    # RTX 4070 run log recorded fewer streaming/turning frame dips.
     $env:VICTORY_WIDE_TEXTURES = "1"
 
     # Do not let inherited experiments silently alter the picture/performance.
@@ -120,7 +120,6 @@ try {
     $env:VICTORY_AMBIENT_STUB = "0"
     $env:VICTORY_SHADOWMASK_STUB = "0"
     $env:VICTORY_AMBIENT = ""
-    $env:FLAMINGO_QUAD_HELPERS = "0"
     if ($ExperimentalQuadHelpers) {
         $env:FLAMINGO_QUAD_HELPERS = "1"
         Write-Warning "Experimental quad helper reads can improve fine detail but cost about 18% in the documented test. Compare a close-up and frame time."
@@ -162,8 +161,25 @@ try {
         New-Item -ItemType Directory -Force -Path $logDir | Out-Null
         $logPath = Join-Path $logDir ("rtx3070-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".log")
         Write-Host ("Run log:          {0}" -f $logPath)
-        & $VictoryExe run $GameExe --execute --console $console 2>&1 | Tee-Object -FilePath $logPath
-        $exitCode = $LASTEXITCODE
+
+        # Windows PowerShell can represent native stderr lines as error
+        # records. With the script-wide Stop preference, an ordinary Rust
+        # INFO message on stderr can abort this pipeline. Continue only for
+        # the child process; we still check its real exit code immediately
+        # after the pipeline and throw if it is non-zero.
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "Continue"
+            & $VictoryExe run $GameExe --execute --console $console 2>&1 |
+                Tee-Object -FilePath $logPath
+            if ($null -eq $LASTEXITCODE) {
+                $exitCode = 1
+            } else {
+                $exitCode = [int]$LASTEXITCODE
+            }
+        } finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
     } finally {
         Pop-Location
     }
@@ -171,10 +187,13 @@ try {
     if ($exitCode -ne 0) {
         throw "VIctory exited with code $exitCode. Check the console output and the title's data-folder crashes.log."
     }
+
+    Write-Host "VIctory exited normally (code 0)."
 } finally {
     foreach ($name in $names) {
         [Environment]::SetEnvironmentVariable($name, $previous[$name], "Process")
     }
 }
 
-exit $exitCode
+# Deliberately do not use the PowerShell exit statement here: after the game
+# quits it would also close the user's interactive PowerShell session.
