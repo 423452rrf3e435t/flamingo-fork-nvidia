@@ -36,6 +36,16 @@ The launcher can also try Flamingo's no-hit ray mode for one comparison:
 
 This changes every ray-tracing node test to miss when the structure builder is off. Flamingo's run log reports that it removed some black water artefacts and brightened a face, but reflection fallback streaks remained and an earlier test hung. It is not correct ray-traced lighting; use it only as a short A/B visual experiment, then relaunch without the switch.
 
+## Optional fine-detail experiment
+
+Flamingo's helper-lane quad reads can improve fine texture detail and edges in pixel-shader derivatives. The project log measured about an 18% frame-time cost in the test scene. Compare it only on a close-up and watch the overlay:
+
+```powershell
+.\scripts\play-rtx3070.ps1 -GameExe "C:\path\to\game_scarlett_master.exe" -ExperimentalQuadHelpers
+```
+
+This switch and the no-hit ray experiment can be combined, but test them one at a time so you can tell which changed the image or frame time. The launcher writes the console output to `%LOCALAPPDATA%\flamingo\logs\rtx3070-*.log`.
+
 ## What this profile deliberately does not enable
 
 - The ray-tracing structure builder remains off. The source documents it as unfinished in this port; a partial or incorrect builder can corrupt title memory or crash the game.
