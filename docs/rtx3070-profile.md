@@ -18,7 +18,7 @@ Then run:
 
 The script selects the Series S console profile by default. In this port, that keeps the title's own upscaler and lowers the rendering workload compared with the Series X profile. It is the recommended first comparison on an 8 GiB card. Use -SeriesX to compare image detail against the heavier Series X path.
 
-The script uses a 512 MiB card-buffer pool instead of the 1 GiB setting in the repository's RTX 4070 test recipe. It enables the repository's documented relay / late-wait / indirect-window recipe, the parallel texture-refresh path (`VICTORY_WIDE_TEXTURES=1`, measured in the project log to reduce streaming dips), and the Flamingo stats overlay. Press **F9** to hide or show the overlay. It saves console output under `%LOCALAPPDATA%\\flamingo\\logs` and restores the process environment after the title exits.
+The script uses a 512 MiB card-buffer pool instead of the 1 GiB setting in the repository's RTX 4070 test recipe. It enables the repository's documented relay / late-wait / indirect-window recipe, the parallel texture-refresh path (`VICTORY_WIDE_TEXTURES=1`, measured in the project log to reduce streaming dips), and the Flamingo stats overlay. It sets `VICTORY_PIPELINE_WAIT_MS=500`, matching the renderer's 500 ms per-frame shared first-use pipeline wait default; the earlier 24 ms profile was too aggressive and could cause draws to be dropped while pipelines were still compiling. Press **F9** to hide or show the overlay. It saves console output under `%LOCALAPPDATA%\\flamingo\\logs` and restores the process environment after the title exits.
 
 ## Fresh start for every test
 

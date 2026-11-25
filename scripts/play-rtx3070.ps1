@@ -137,7 +137,7 @@ try {
     # The card-copy pool is reduced from the 1 GiB / 12 GiB test-card setting
     # to 512 MiB for an 8 GiB card.
     $env:VICTORY_NO_WATCHDOG = "1"
-    $env:VICTORY_PIPELINE_WAIT_MS = "24"
+    $env:VICTORY_PIPELINE_WAIT_MS = "500"
     $env:VICTORY_RELAY = "1"
     $env:VICTORY_LATE_WAIT = "3"
     $env:VICTORY_CARD_BUFFERS_MIN_MB = "1"

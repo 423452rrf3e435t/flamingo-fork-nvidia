@@ -101,6 +101,7 @@ cargo build --profile diag -p victory
 
 It uses a 512 MiB card-buffer pool and shows the Flamingo performance overlay. Series S is selected to reduce rendering load; pass -SeriesX to compare the sharper, heavier path. Read [docs/rtx3070-profile.md](docs/rtx3070-profile.md) for the 16 GiB system-memory caveat and the exact settings. This is a conservative launch profile, not a verified FPS guarantee for an RTX 3070.
 
+
 ## Build and run
 
 You need Rust (stable) and Windows 11.
@@ -113,7 +114,7 @@ Run it with the settings this build is tuned for:
 
 ```
 set VICTORY_NO_WATCHDOG=1
-set VICTORY_PIPELINE_WAIT_MS=24
+set VICTORY_PIPELINE_WAIT_MS=500
 set VICTORY_RELAY=1
 set VICTORY_LATE_WAIT=3
 set VICTORY_CARD_BUFFERS_MIN_MB=1
@@ -131,6 +132,34 @@ use the cache.
 For Discord Rich Presence, put your own Discord application id in
 `%LOCALAPPDATA%\flamingo\discord_app_id.txt` (FLAMINGO.md has the steps).
 `FLAMINGO_DISCORD=0` turns it off.
+
+## Reporting a problem (logging build)
+
+When something goes wrong (a black screen, a crash, missing pictures), a log tells us what
+happened on your PC. `flamingo-log.cmd` makes one:
+
+1. Install [Rust](https://rustup.rs) and [Git](https://git-scm.com) if you have not.
+2. Get the newest code: `git clone https://github.com/realblastex/flamingo` (or, in a clone you
+   already have, `git pull`).
+3. Drag the title's executable from your own dump onto `flamingo-log.cmd` in the repository's
+   folder, or run it from a command prompt:
+
+   ```
+   flamingo-log.cmd "D:\path\to\your\dump\the-title.exe"
+   ```
+
+   It builds Flamingo (several minutes the first time), runs it with the settings above and
+   its log on, and remembers the path for next time (`flamingo-game.txt`).
+4. Play until the problem shows (for a black screen, wait a minute in it), then close the game
+   window.
+5. The log is saved in the `logs` folder as `flamingo-<date>-<time>.log`, with a `.zip` of it
+   next to it (Explorer opens there). Attach the `.zip` to your issue, and say what you saw and
+   when.
+
+The log starts with your Windows version, processor, memory and graphics cards with their
+driver versions. It also holds file paths of your PC, which can include your Windows user
+name: look it over before you share it. `set FLAMINGO_SERIES_X=1` before running uses the
+Series X profile instead of Series S.
 
 ## Credits
 
