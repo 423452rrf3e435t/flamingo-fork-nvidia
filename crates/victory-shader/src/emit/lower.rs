@@ -11957,13 +11957,21 @@ impl<'a> Lower<'a> {
         // 14-25 frames in, in a minimap or shadow mesh draw; with every
         // loop cut at 64 it ran 90 frames. Raise them again once shaders
         // stop reading data that is not there yet.)
-        let limit = match super::loop_limit() {
+        let mut limit = match super::loop_limit() {
             LOOP_LIMIT if self.s.pixel => 1 << 7,
             LOOP_LIMIT if self.s.mesh.is_some() || self.s.threads.is_none() => 1 << 8,
             LOOP_LIMIT if self.traces => TRACE_LOOP_LIMIT,
             LOOP_LIMIT => 1 << 12,
             named => named,
         };
+        // A loop whose code fixes its iteration count must finish; stage limits
+        // are for loops whose exit depends on data the host may not have yet.
+        // This is important for the title's environment-BRDF integrations:
+        // their six pixel loops integrate 1,024 samples per texel, while the
+        // ordinary pixel safety limit is 128 passes.
+        if let Some(passes) = super::trip::constant_passes(self.x.p, &self.rpo, to) {
+            limit = limit.max(passes.saturating_add(1));
+        }
         let limit = self.s.m.i32(limit);
         self.counters
             .get_mut(&to)

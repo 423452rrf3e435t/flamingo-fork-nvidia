@@ -103,6 +103,7 @@ mod rect;
 mod sampler;
 mod shader;
 mod threading;
+mod trip;
 #[cfg(windows)]
 pub mod validator;
 #[cfg(all(test, windows))]
