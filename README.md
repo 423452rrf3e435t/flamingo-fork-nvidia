@@ -90,6 +90,17 @@ Experiments, all off by default, kept for testing (each has its result in FLAMIN
 
 The full list, with the runs behind each one, is in [FLAMINGO.md](FLAMINGO.md).
 
+## RTX 3070 / 8 GiB starting profile
+
+For an 8 GiB NVIDIA card and a lower-memory PC, build the executable and use the conservative Series S profile:
+
+```powershell
+cargo build --profile diag -p victory
+.\scripts\play-rtx3070.ps1 -GameExe "C:\path\to\game_scarlett_master.exe"
+```
+
+It uses a 512 MiB card-buffer pool and shows the Flamingo performance overlay. Series S is selected to reduce rendering load; pass -SeriesX to compare the sharper, heavier path. Read [docs/rtx3070-profile.md](docs/rtx3070-profile.md) for the 16 GiB system-memory caveat and the exact settings. This is a conservative launch profile, not a verified FPS guarantee for an RTX 3070.
+
 ## Build and run
 
 You need Rust (stable) and Windows 11.
