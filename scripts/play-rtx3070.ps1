@@ -82,12 +82,45 @@ $names = @(
     "VICTORY_AMBIENT",
     "FLAMINGO_QUAD_HELPERS",
     "FLAMINGO_BVH_MISS",
-    "FLAMINGO_OSD"
+    "FLAMINGO_OSD",
+    "VICTORY_WIDE_BACK",
+    "VICTORY_WIDE_REFRESH",
+    "VICTORY_WAVE_LDS_LOOSE",
+    "VICTORY_ASYNC_SUBMIT",
+    "VICTORY_QUEUE2",
+    "VICTORY_QUEUE2_REFETCH",
+    "VICTORY_INPLACE",
+    "VICTORY_VIEW_GUARD",
+    "VICTORY_DISPLAY_MODE",
+    "VICTORY_CARD_REHASH_RUNS",
+    "FLAMINGO_CARD_FILLS",
+    "FLAMINGO_COLD_ASKS"
 )
 
 $previous = @{}
 foreach ($name in $names) {
     $previous[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
+}
+
+# Remove optional paths that were measured as slower, visually risky, or
+# inconclusive. Removing is deliberate: some switches are presence-based,
+# so assigning the string "0" would not reliably mean disabled.
+$clearExperimentNames = @(
+    "VICTORY_WIDE_BACK",
+    "VICTORY_WIDE_REFRESH",
+    "VICTORY_WAVE_LDS_LOOSE",
+    "VICTORY_ASYNC_SUBMIT",
+    "VICTORY_QUEUE2",
+    "VICTORY_QUEUE2_REFETCH",
+    "VICTORY_INPLACE",
+    "VICTORY_VIEW_GUARD",
+    "VICTORY_DISPLAY_MODE",
+    "VICTORY_CARD_REHASH_RUNS",
+    "FLAMINGO_CARD_FILLS",
+    "FLAMINGO_COLD_ASKS"
+)
+foreach ($name in $clearExperimentNames) {
+    [Environment]::SetEnvironmentVariable($name, $null, "Process")
 }
 
 $exitCode = 0
