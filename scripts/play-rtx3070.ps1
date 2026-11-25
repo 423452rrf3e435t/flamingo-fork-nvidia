@@ -27,9 +27,8 @@ param(
 
     [switch]$NoOverlay,
 
-    # The default test mode starts a new title profile each launch. Existing
-    # local saves/storage are backed up, not deleted. Use -KeepProgress to
-    # continue the previous run instead.
+    # Fresh-start mode is the default for repeated testing. Existing save
+    # folders are backed up before empty folders are created.
     [switch]$KeepProgress,
 
     [switch]$ExperimentalNoHitLighting,
@@ -194,9 +193,9 @@ try {
     Write-Host "Press F9 to hide/show the stats overlay."
     Write-Host ""
 
-    # A clean title start: back up the title's persistent local storage and
-    # save-game folder, then recreate both empty. The title ID and data_dir
-    # are read from the same config/manifest the runtime will use.
+    # Fresh-start mode archives persistent title data, instead of deleting it.
+    # This title's TitleId is read from the same manifest the runtime reads;
+    # data_dir is read from the same resolved VIctory config.
     if (-not $KeepProgress) {
         $configOutput = ""
         $configExitCode = 0
@@ -204,7 +203,6 @@ try {
         try {
             $savedPreference = $ErrorActionPreference
             try {
-                # Rust INFO messages may be written to stderr on Windows.
                 $ErrorActionPreference = "Continue"
                 $configOutput = (& $VictoryExe config 2>&1 | Out-String)
                 $configExitCode = [int]$LASTEXITCODE
@@ -215,7 +213,7 @@ try {
             Pop-Location
         }
         if ($configExitCode -ne 0) {
-            throw "Could not read the resolved VIctory config (exit $configExitCode); refusing to reset any save data."
+            throw "Could not read the resolved VIctory config (exit $configExitCode); refusing to reset save data."
         }
 
         $dataMatch = [regex]::Match($configOutput, '(?m)^\s*data_dir\s*:\s*(?<path>.+?)\s*
@@ -260,7 +258,7 @@ try {
 # quits it would also close the user's interactive PowerShell session.
 )
         if (-not $dataMatch.Success) {
-            throw "Could not find data_dir in 'victory config'; refusing to reset any save data."
+            throw "Could not find data_dir in 'victory config'; refusing to reset save data."
         }
         $dataDirText = $dataMatch.Groups["path"].Value.Trim()
         if (-not [System.IO.Path]::IsPathRooted($dataDirText)) {
@@ -273,7 +271,7 @@ try {
         }
 
         $manifestCandidates = @((Join-Path (Split-Path -Parent $GameExe) "MicrosoftGame.config"))
-        $configuredGameDirMatch = [regex]::Match($configOutput, '(?m)^\s*game_dir\s*:\s*(?<path>.+?)\s*
+        $gameDirMatch = [regex]::Match($configOutput, '(?m)^\s*game_dir\s*:\s*(?<path>.+?)\s*
         New-Item -ItemType Directory -Force -Path $logDir | Out-Null
         $logPath = Join-Path $logDir ("rtx3070-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".log")
         Write-Host ("Run log:          {0}" -f $logPath)
@@ -314,9 +312,9 @@ try {
 # Deliberately do not use the PowerShell exit statement here: after the game
 # quits it would also close the user's interactive PowerShell session.
 )
-        if ($configuredGameDirMatch.Success) {
-            $configuredGameDir = $configuredGameDirMatch.Groups["path"].Value.Trim()
-            $configuredGameDir = $configuredGameDir -replace '\s+\(does not exist\)
+        if ($gameDirMatch.Success) {
+            $gameDirText = $gameDirMatch.Groups["path"].Value.Trim()
+            $gameDirText = $gameDirText -replace '\s+\(does not exist\)
         New-Item -ItemType Directory -Force -Path $logDir | Out-Null
         $logPath = Join-Path $logDir ("rtx3070-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".log")
         Write-Host ("Run log:          {0}" -f $logPath)
@@ -357,11 +355,11 @@ try {
 # Deliberately do not use the PowerShell exit statement here: after the game
 # quits it would also close the user's interactive PowerShell session.
 , ''
-            if ($configuredGameDir -and -not [System.IO.Path]::IsPathRooted($configuredGameDir)) {
-                $configuredGameDir = Join-Path $repoRoot $configuredGameDir
+            if ($gameDirText -and -not [System.IO.Path]::IsPathRooted($gameDirText)) {
+                $gameDirText = Join-Path $repoRoot $gameDirText
             }
-            if ($configuredGameDir) {
-                $manifestCandidates += Join-Path $configuredGameDir "MicrosoftGame.config"
+            if ($gameDirText) {
+                $manifestCandidates += Join-Path $gameDirText "MicrosoftGame.config"
             }
         }
         $manifestPath = $manifestCandidates |
@@ -369,7 +367,7 @@ try {
             Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
             Select-Object -First 1
         if (-not $manifestPath) {
-            throw "MicrosoftGame.config was not found beside the game executable or in the configured game_dir; refusing to reset any save data."
+            throw "MicrosoftGame.config was not found; refusing to reset save data."
         }
 
         try {
@@ -385,7 +383,7 @@ try {
             )
             $titleId = $titleIdNumber.ToString("X8")
         } catch {
-            throw "Could not read the title ID from '$manifestPath': $($_.Exception.Message) Refusing to reset any save data."
+            throw "Could not read the title ID from '$manifestPath': $($_.Exception.Message) Refusing to reset save data."
         }
 
         $titleDataDir = Join-Path $dataDir $titleId
