@@ -27,6 +27,11 @@ param(
 
     [switch]$NoOverlay,
 
+    # The default test mode starts a new title profile each launch. Existing
+    # local saves/storage are backed up, not deleted. Use -KeepProgress to
+    # continue the previous run instead.
+    [switch]$KeepProgress,
+
     [switch]$ExperimentalNoHitLighting,
 
     [switch]$ExperimentalQuadHelpers
@@ -182,11 +187,220 @@ try {
     Write-Host ("Console profile:  {0}" -f $console)
     Write-Host ("Card copy budget: {0} MiB" -f $CardBuffersMb)
     Write-Host ("Stats overlay:    {0}" -f (-not $NoOverlay))
+    Write-Host ("Fresh start:      {0}" -f (-not $KeepProgress))
     Write-Host "Ray-tracing builder and lighting stand-ins: OFF"
     Write-Host ("Experimental no-hit ray mode: {0}" -f [bool]$ExperimentalNoHitLighting)
     Write-Host ("Experimental quad helpers:  {0}" -f [bool]$ExperimentalQuadHelpers)
     Write-Host "Press F9 to hide/show the stats overlay."
     Write-Host ""
+
+    # A clean title start: back up the title's persistent local storage and
+    # save-game folder, then recreate both empty. The title ID and data_dir
+    # are read from the same config/manifest the runtime will use.
+    if (-not $KeepProgress) {
+        $configOutput = ""
+        $configExitCode = 0
+        Push-Location $repoRoot
+        try {
+            $savedPreference = $ErrorActionPreference
+            try {
+                # Rust INFO messages may be written to stderr on Windows.
+                $ErrorActionPreference = "Continue"
+                $configOutput = (& $VictoryExe config 2>&1 | Out-String)
+                $configExitCode = [int]$LASTEXITCODE
+            } finally {
+                $ErrorActionPreference = $savedPreference
+            }
+        } finally {
+            Pop-Location
+        }
+        if ($configExitCode -ne 0) {
+            throw "Could not read the resolved VIctory config (exit $configExitCode); refusing to reset any save data."
+        }
+
+        $dataMatch = [regex]::Match($configOutput, '(?m)^\s*data_dir\s*:\s*(?<path>.+?)\s*
+        New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+        $logPath = Join-Path $logDir ("rtx3070-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".log")
+        Write-Host ("Run log:          {0}" -f $logPath)
+
+        # Windows PowerShell can represent native stderr lines as error
+        # records. With the script-wide Stop preference, an ordinary Rust
+        # INFO message on stderr can abort this pipeline. Continue only for
+        # the child process; we still check its real exit code immediately
+        # after the pipeline and throw if it is non-zero.
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "Continue"
+            & $VictoryExe run $GameExe --execute --console $console 2>&1 |
+                Tee-Object -FilePath $logPath
+            if ($null -eq $LASTEXITCODE) {
+                $exitCode = 1
+            } else {
+                $exitCode = [int]$LASTEXITCODE
+            }
+        } finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+    } finally {
+        Pop-Location
+    }
+
+    if ($exitCode -ne 0) {
+        throw "VIctory exited with code $exitCode. Check the console output and the title's data-folder crashes.log."
+    }
+
+    Write-Host "VIctory exited normally (code 0)."
+} finally {
+    foreach ($name in $names) {
+        [Environment]::SetEnvironmentVariable($name, $previous[$name], "Process")
+    }
+}
+
+# Deliberately do not use the PowerShell exit statement here: after the game
+# quits it would also close the user's interactive PowerShell session.
+)
+        if (-not $dataMatch.Success) {
+            throw "Could not find data_dir in 'victory config'; refusing to reset any save data."
+        }
+        $dataDirText = $dataMatch.Groups["path"].Value.Trim()
+        if (-not [System.IO.Path]::IsPathRooted($dataDirText)) {
+            $dataDirText = Join-Path $repoRoot $dataDirText
+        }
+        $dataDir = [System.IO.Path]::GetFullPath($dataDirText)
+        $repoPrefix = $repoRoot.TrimEnd('\') + '\'
+        if ($dataDir.StartsWith($repoPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Refusing to reset title data inside the repository: '$dataDir'."
+        }
+
+        $manifestCandidates = @((Join-Path (Split-Path -Parent $GameExe) "MicrosoftGame.config"))
+        $configuredGameDirMatch = [regex]::Match($configOutput, '(?m)^\s*game_dir\s*:\s*(?<path>.+?)\s*
+        New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+        $logPath = Join-Path $logDir ("rtx3070-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".log")
+        Write-Host ("Run log:          {0}" -f $logPath)
+
+        # Windows PowerShell can represent native stderr lines as error
+        # records. With the script-wide Stop preference, an ordinary Rust
+        # INFO message on stderr can abort this pipeline. Continue only for
+        # the child process; we still check its real exit code immediately
+        # after the pipeline and throw if it is non-zero.
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "Continue"
+            & $VictoryExe run $GameExe --execute --console $console 2>&1 |
+                Tee-Object -FilePath $logPath
+            if ($null -eq $LASTEXITCODE) {
+                $exitCode = 1
+            } else {
+                $exitCode = [int]$LASTEXITCODE
+            }
+        } finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+    } finally {
+        Pop-Location
+    }
+
+    if ($exitCode -ne 0) {
+        throw "VIctory exited with code $exitCode. Check the console output and the title's data-folder crashes.log."
+    }
+
+    Write-Host "VIctory exited normally (code 0)."
+} finally {
+    foreach ($name in $names) {
+        [Environment]::SetEnvironmentVariable($name, $previous[$name], "Process")
+    }
+}
+
+# Deliberately do not use the PowerShell exit statement here: after the game
+# quits it would also close the user's interactive PowerShell session.
+)
+        if ($configuredGameDirMatch.Success) {
+            $configuredGameDir = $configuredGameDirMatch.Groups["path"].Value.Trim()
+            $configuredGameDir = $configuredGameDir -replace '\s+\(does not exist\)
+        New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+        $logPath = Join-Path $logDir ("rtx3070-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".log")
+        Write-Host ("Run log:          {0}" -f $logPath)
+
+        # Windows PowerShell can represent native stderr lines as error
+        # records. With the script-wide Stop preference, an ordinary Rust
+        # INFO message on stderr can abort this pipeline. Continue only for
+        # the child process; we still check its real exit code immediately
+        # after the pipeline and throw if it is non-zero.
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "Continue"
+            & $VictoryExe run $GameExe --execute --console $console 2>&1 |
+                Tee-Object -FilePath $logPath
+            if ($null -eq $LASTEXITCODE) {
+                $exitCode = 1
+            } else {
+                $exitCode = [int]$LASTEXITCODE
+            }
+        } finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+    } finally {
+        Pop-Location
+    }
+
+    if ($exitCode -ne 0) {
+        throw "VIctory exited with code $exitCode. Check the console output and the title's data-folder crashes.log."
+    }
+
+    Write-Host "VIctory exited normally (code 0)."
+} finally {
+    foreach ($name in $names) {
+        [Environment]::SetEnvironmentVariable($name, $previous[$name], "Process")
+    }
+}
+
+# Deliberately do not use the PowerShell exit statement here: after the game
+# quits it would also close the user's interactive PowerShell session.
+, ''
+            if ($configuredGameDir -and -not [System.IO.Path]::IsPathRooted($configuredGameDir)) {
+                $configuredGameDir = Join-Path $repoRoot $configuredGameDir
+            }
+            if ($configuredGameDir) {
+                $manifestCandidates += Join-Path $configuredGameDir "MicrosoftGame.config"
+            }
+        }
+        $manifestPath = $manifestCandidates |
+            Select-Object -Unique |
+            Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+            Select-Object -First 1
+        if (-not $manifestPath) {
+            throw "MicrosoftGame.config was not found beside the game executable or in the configured game_dir; refusing to reset any save data."
+        }
+
+        try {
+            $manifestXml = New-Object System.Xml.XmlDocument
+            $manifestXml.Load($manifestPath)
+            $titleIdNode = $manifestXml.SelectSingleNode("//*[local-name()='TitleId']")
+            if ($null -eq $titleIdNode -or [string]::IsNullOrWhiteSpace($titleIdNode.InnerText)) {
+                throw "TitleId element is missing."
+            }
+            $titleIdNumber = [UInt32]::Parse(
+                $titleIdNode.InnerText.Trim(),
+                [Globalization.NumberStyles]::HexNumber
+            )
+            $titleId = $titleIdNumber.ToString("X8")
+        } catch {
+            throw "Could not read the title ID from '$manifestPath': $($_.Exception.Message) Refusing to reset any save data."
+        }
+
+        $titleDataDir = Join-Path $dataDir $titleId
+        $backupStamp = Get-Date -Format "yyyyMMdd-HHmmss-fff"
+        foreach ($stateName in @("saves", "storage")) {
+            $statePath = Join-Path $titleDataDir $stateName
+            if (Test-Path -LiteralPath $statePath) {
+                $backupPath = "$statePath.backup-$backupStamp"
+                Move-Item -LiteralPath $statePath -Destination $backupPath
+                Write-Host ("Previous {0} backed up to: {1}" -f $stateName, $backupPath)
+            }
+            New-Item -ItemType Directory -Force -Path $statePath | Out-Null
+        }
+        Write-Host ("Fresh title state prepared for ID {0}." -f $titleId)
+    }
 
     Push-Location $repoRoot
     try {
